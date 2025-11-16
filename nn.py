@@ -7,6 +7,7 @@ import json
 NOTION_TOKEN = ""
 DATABASE_ID = ""
 
+
 def verificar_colunas():
     """Mostra as colunas disponíveis no database"""
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}"
@@ -25,8 +26,76 @@ def verificar_colunas():
         print(f"Erro ao buscar database: {response.status_code}")
         print(response.json())
 
+def listar_paginas():
+    """Lista as últimas páginas do database com seus IDs"""
+    url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
+    headers = {
+        "Authorization": f"Bearer {NOTION_TOKEN}",
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28"
+    }
+    data = {
+        "page_size": 20,
+        "sorts": [{"timestamp": "created_time", "direction": "descending"}]
+    }
+    
+    response = requests.post(url, headers=headers, json=data)
+    
+    if response.status_code == 200:
+        results = response.json()['results']
+        print("\n=== Últimas páginas ===")
+        for page in results:
+            page_id = page['id']
+            # Pega o título da página
+            titulo_prop = page['properties'].get('Nome', {})
+            if titulo_prop.get('title'):
+                titulo = titulo_prop['title'][0]['text']['content']
+            else:
+                titulo = "(sem título)"
+            print(f"  • {titulo}")
+            print(f"    ID: {page_id}\n")
+    else:
+        print(f"Erro ao listar páginas: {response.status_code}")
+        print(response.json())
+
+def adicionar_conteudo_pagina(page_id, conteudo):
+    """Adiciona conteúdo (bloco) em uma página existente"""
+    url = f"https://api.notion.com/v1/blocks/{page_id}/children"
+    headers = {
+        "Authorization": f"Bearer {NOTION_TOKEN}",
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28"
+    }
+    
+    # Divide conteúdo em parágrafos se tiver quebras de linha
+    paragrafos = conteudo.split('\n')
+    blocos = []
+    
+    for para in paragrafos:
+        if para.strip():  # Ignora linhas vazias
+            blocos.append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{
+                        "type": "text",
+                        "text": {"content": para}
+                    }]
+                }
+            })
+    
+    data = {"children": blocos}
+    
+    response = requests.patch(url, headers=headers, json=data)
+    
+    if response.status_code == 200:
+        print("✓ Conteúdo adicionado à página existente!")
+    else:
+        print(f"✗ Erro: {response.status_code}")
+        print(response.json())
+
 def adicionar_nota(titulo, conteudo):
-    """Adiciona uma nota no Notion"""
+    """Cria uma nova página no database"""
     url = "https://api.notion.com/v1/pages"
     
     headers = {
@@ -39,7 +108,7 @@ def adicionar_nota(titulo, conteudo):
     data = {
         "parent": {"database_id": DATABASE_ID},
         "properties": {
-            "Nome": {  # Coluna de título do database
+            "Nome": {
                 "title": [
                     {
                         "text": {
@@ -71,20 +140,50 @@ def adicionar_nota(titulo, conteudo):
     
     if response.status_code == 200:
         print("✓ Nota adicionada com sucesso!")
+        page_id = response.json()['id']
+        print(f"  Page ID: {page_id}")
     else:
         print(f"✗ Erro: {response.status_code}")
         print(response.json())
 
 if __name__ == "__main__":
-    # Se usar --check, mostra as colunas
-    if len(sys.argv) > 1 and sys.argv[1] == "--check":
-        verificar_colunas()
+    # Comandos especiais
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--check":
+            verificar_colunas()
+            sys.exit(0)
+        elif sys.argv[1] == "--list" or sys.argv[1] == "-l":
+            listar_paginas()
+            sys.exit(0)
+    
+    # Adicionar conteúdo em página existente
+    if len(sys.argv) >= 4 and sys.argv[1] == "-p":
+        page_id = sys.argv[2]
+        
+        # Se usar -f, lê de arquivo
+        if sys.argv[3] == "-f" and len(sys.argv) >= 5:
+            try:
+                with open(sys.argv[4], 'r', encoding='utf-8') as f:
+                    conteudo = f.read()
+            except FileNotFoundError:
+                print(f"✗ Arquivo '{sys.argv[4]}' não encontrado")
+                sys.exit(1)
+        else:
+            conteudo = sys.argv[3]
+        
+        adicionar_conteudo_pagina(page_id, conteudo)
         sys.exit(0)
     
+    # Criar nova página
     if len(sys.argv) < 3:
-        print("Uso: python notion_note.py 'Título' 'Conteúdo'")
-        print("Ou:   python notion_note.py 'Título' -f arquivo.txt")
-        print("Ou:   python notion_note.py --check  (para ver colunas)")
+        print("nn - terminal notes to notion")
+        print("\nUso:")
+        print("  nn 'Título' 'Conteúdo'           # cria nova página")
+        print("  nn 'Título' -f arquivo.txt       # cria nova página do arquivo")
+        print("  nn -p PAGE_ID 'Conteúdo'         # adiciona em página existente")
+        print("  nn -p PAGE_ID -f arquivo.txt     # adiciona arquivo em página")
+        print("  nn --list ou -l                  # lista páginas e IDs")
+        print("  nn --check                       # mostra colunas do database")
         sys.exit(1)
     
     titulo = sys.argv[1]
