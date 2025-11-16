@@ -44,17 +44,59 @@ https://www.notion.so/workspace/a1b2c3d4e5f6...?v=...
 ```bash
 pip install requests
 python notion_note.py --check  # verify columns
-python notion_note.py "Title" "Content"
-python notion_note.py "Title" -f file.txt
 ```
 
-### Optional: Create alias
+## Usage
+
+## Optional: Create alias
 
 Add to `.bashrc` or `.zshrc`:
 ```bash
 alias nn='python ~/path/to/notion_note.py'
 ```
 
-Now just: `nn "Title" "Content"`
+### Create new pages
 
----
+```bash
+nn "Title" "Content"                    # create page with content
+nn "Title" -f file.txt                  # create page from file
+```
+
+### Add to existing pages
+
+```bash
+nn --list                               # list recent pages with IDs
+nn -p PAGE_ID "More content"            # append to existing page
+nn -p PAGE_ID -f notes.txt              # append file to existing page
+```
+
+### Get Page ID
+
+**Option 1:** List pages
+```bash
+nn --list
+```
+
+**Option 2:** From URL
+```
+https://www.notion.so/workspace/...?p=a1b2c3d4e5f6&pm=s
+                                      ^^^^^^^^^^^^^^^^
+                                      This is your Page ID
+```
+
+## Workflow Example
+
+```bash
+# Day 1: Create study page
+nn "Python Recursion" "Starting to learn recursion"
+
+# List pages to get ID
+nn --list
+# Output: ID: a1b2c3d4e5f6
+
+# Day 2: Add more notes to same page
+nn -p a1b2c3d4e5f6 "Factorial example: n * factorial(n-1)"
+
+# Day 3: Add exercise file
+nn -p a1b2c3d4e5f6 -f exercises.txt
+```
